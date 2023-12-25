@@ -105,6 +105,7 @@ class XGBSEDebiasedBCE(XGBSEBaseEstimator):
         xgb_params=None,
         lr_params=None,
         n_jobs=-1,
+        enable_categorical=True,
     ):
         """
         Args:
@@ -139,6 +140,8 @@ class XGBSEDebiasedBCE(XGBSEBaseEstimator):
 
             n_jobs (Int): Number of CPU cores used to fit logistic regressions via joblib.
 
+            enable_categorical (bool): Whether to enable the usage of categorical variables or not
+
         """
         if xgb_params is None:
             xgb_params = DEFAULT_PARAMS
@@ -150,6 +153,7 @@ class XGBSEDebiasedBCE(XGBSEBaseEstimator):
         self.n_jobs = n_jobs
         self.persist_train = False
         self.feature_importances_ = None
+        self.enable_categorical = enable_categorical
 
     def fit(
         self,
@@ -162,7 +166,6 @@ class XGBSEDebiasedBCE(XGBSEBaseEstimator):
         persist_train=False,
         index_id=None,
         time_bins=None,
-        enable_categorical=True
     ):
         """
         Transform feature space by fitting a XGBoost model and returning its leaf indices.
@@ -195,8 +198,6 @@ class XGBSEDebiasedBCE(XGBSEBaseEstimator):
 
             time_bins (np.array): Specified time windows to use when making survival predictions
 
-            enable_categorical (bool): Whether to enable the usage of categorical variables or not
-
         Returns:
             XGBSEDebiasedBCE: Trained XGBSEDebiasedBCE instance
         """
@@ -207,14 +208,14 @@ class XGBSEDebiasedBCE(XGBSEBaseEstimator):
         self.time_bins = time_bins
 
         # converting data to xgb format
-        dtrain = convert_data_to_xgb_format(X, y, self.xgb_params["objective"], enable_categorical)
+        dtrain = convert_data_to_xgb_format(X, y, self.xgb_params["objective"], self.enable_categorical)
 
         # converting validation data to xgb format
         evals = ()
         if validation_data:
             X_val, y_val = validation_data
             dvalid = convert_data_to_xgb_format(
-                X_val, y_val, self.xgb_params["objective"], enable_categorical
+                X_val, y_val, self.xgb_params["objective"], self.enable_categorical
             )
             evals = [(dvalid, "validation")]
 
@@ -376,7 +377,7 @@ class XGBSEDebiasedBCE(XGBSEBaseEstimator):
         """
 
         # converting to xgb format
-        d_matrix = xgb.DMatrix(X)
+        d_matrix = xgb.DMatrix(X, enable_categorical=self.enable_categorical)
 
         # getting leaves and extracting neighbors
         leaves = self.bst.predict(

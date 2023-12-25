@@ -61,7 +61,7 @@ class XGBSEKaplanNeighbors(XGBSEBaseEstimator):
 
     """
 
-    def __init__(self, xgb_params=None, n_neighbors=30, radius=None):
+    def __init__(self, xgb_params=None, n_neighbors=30, radius=None, enable_categorical=False):
         """
         Args:
             xgb_params (Dict): Parameters for XGBoost model.
@@ -88,6 +88,8 @@ class XGBSEKaplanNeighbors(XGBSEBaseEstimator):
             n_neighbors (Int): Number of neighbors for computing KM estimates
 
             radius (Float): If set, uses a radius around the point for neighbors search
+
+            enable_categorical (bool): Whether to enable the usage of categorical variables or not
         """
         if xgb_params is None:
             xgb_params = DEFAULT_PARAMS
@@ -97,8 +99,8 @@ class XGBSEKaplanNeighbors(XGBSEBaseEstimator):
         self.radius = radius
         self.persist_train = False
         self.index_id = None
-        self.radius = None
         self.feature_importances_ = None
+        self.enable_categorical = enable_categorical
 
     def fit(
         self,
@@ -111,7 +113,6 @@ class XGBSEKaplanNeighbors(XGBSEBaseEstimator):
         persist_train=True,
         index_id=None,
         time_bins=None,
-        enable_categorical=True,
     ):
         """
         Transform feature space by fitting a XGBoost model and outputting its leaf indices.
@@ -143,8 +144,6 @@ class XGBSEKaplanNeighbors(XGBSEBaseEstimator):
 
             time_bins (np.array): Specified time windows to use when making survival predictions
 
-            enable_categorical (bool): Whether to enable the usage of categorical variables or not
-
         Returns:
             XGBSEKaplanNeighbors: Fitted instance of XGBSEKaplanNeighbors
         """
@@ -155,14 +154,14 @@ class XGBSEKaplanNeighbors(XGBSEBaseEstimator):
         self.time_bins = time_bins
 
         # converting data to xgb format
-        dtrain = convert_data_to_xgb_format(X, y, self.xgb_params["objective"], enable_categorical)
+        dtrain = convert_data_to_xgb_format(X, y, self.xgb_params["objective"], self.enable_categorical)
 
         # converting validation data to xgb format
         evals = ()
         if validation_data:
             X_val, y_val = validation_data
             dvalid = convert_data_to_xgb_format(
-                X_val, y_val, self.xgb_params["objective"], enable_categorical
+                X_val, y_val, self.xgb_params["objective"], self.enable_categorical
             )
             evals = [(dvalid, "validation")]
 
@@ -236,7 +235,7 @@ class XGBSEKaplanNeighbors(XGBSEBaseEstimator):
         """
 
         # converting to xgb format
-        d_matrix = xgb.DMatrix(X)
+        d_matrix = xgb.DMatrix(X, enable_categorical=self.enable_categorical)
 
         # getting leaves and extracting neighbors
         leaves = self.bst.predict(
@@ -325,6 +324,7 @@ class XGBSEKaplanTree(XGBSEBaseEstimator):
     def __init__(
         self,
         xgb_params=None,
+        enable_categorical=False
     ):
         """
         Args:
@@ -345,6 +345,8 @@ class XGBSEKaplanTree(XGBSEBaseEstimator):
                 ```
 
                 Check <https://xgboost.readthedocs.io/en/latest/parameter.html> for more options.
+            
+            enable_categorical (bool): Whether to enable the usage of categorical variables or not
         """
         if xgb_params is None:
             xgb_params = DEFAULT_PARAMS_TREE
@@ -353,6 +355,7 @@ class XGBSEKaplanTree(XGBSEBaseEstimator):
         self.persist_train = False
         self.index_id = None
         self.feature_importances_ = None
+        self.enable_categorical = enable_categorical
 
     def fit(
         self,
@@ -363,7 +366,6 @@ class XGBSEKaplanTree(XGBSEBaseEstimator):
         time_bins=None,
         ci_width=0.683,
         validation_data=None,
-        enable_categorical=True,
         **xgb_kwargs,
     ):
         """
@@ -393,8 +395,6 @@ class XGBSEKaplanTree(XGBSEBaseEstimator):
 
             validation_data (Tuple): Validation data in the format of a list of tuples [(X, y)]
 
-            enable_categorical (bool): Whether to enable the usage of categorical variables or not
-
         Returns:
             XGBSEKaplanTree: Trained instance of XGBSEKaplanTree
         """
@@ -405,7 +405,7 @@ class XGBSEKaplanTree(XGBSEBaseEstimator):
         self.time_bins = time_bins
 
         # converting data to xgb format
-        dtrain = convert_data_to_xgb_format(X, y, self.xgb_params["objective"], enable_categorical)
+        dtrain = convert_data_to_xgb_format(X, y, self.xgb_params["objective"], self.enable_categorical)
         _index_id = X.index.copy()
         del X, y
 
@@ -414,7 +414,7 @@ class XGBSEKaplanTree(XGBSEBaseEstimator):
         if validation_data:
             X_val, y_val = validation_data
             dvalid = convert_data_to_xgb_format(
-                X_val, y_val, self.xgb_params["objective"], enable_categorical
+                X_val, y_val, self.xgb_params["objective"], self.enable_categorical
             )
             evals = [(dvalid, "validation")]
             del validation_data, X_val, y_val
@@ -495,7 +495,7 @@ class XGBSEKaplanTree(XGBSEBaseEstimator):
         """
 
         # converting to xgb format
-        d_matrix = xgb.DMatrix(X)
+        d_matrix = xgb.DMatrix(X, enable_categorical=self.enable_categorical)
 
         # getting leaves and extracting neighbors
         leaves = self.bst.predict(

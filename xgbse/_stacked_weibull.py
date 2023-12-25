@@ -54,6 +54,7 @@ class XGBSEStackedWeibull(XGBSEBaseEstimator):
         self,
         xgb_params=None,
         weibull_params=None,
+        enable_categorical=False,
     ):
         """
         Args:
@@ -84,6 +85,7 @@ class XGBSEStackedWeibull(XGBSEBaseEstimator):
                 Check <https://lifelines.readthedocs.io/en/latest/fitters/regression/WeibullAFTFitter.html>
                 for more options.
 
+            enable_categorical (bool): Whether to enable the usage of categorical variables or not
 
         """
         if xgb_params is None:
@@ -95,6 +97,7 @@ class XGBSEStackedWeibull(XGBSEBaseEstimator):
         self.weibull_params = weibull_params
         self.persist_train = False
         self.feature_importances_ = None
+        self.enable_categorical = enable_categorical
 
     def fit(
         self,
@@ -107,7 +110,6 @@ class XGBSEStackedWeibull(XGBSEBaseEstimator):
         persist_train=False,
         index_id=None,
         time_bins=None,
-        enable_categorical=True
     ):
         """
         Fit XGBoost model to predict a value that is interpreted as a risk metric.
@@ -139,8 +141,6 @@ class XGBSEStackedWeibull(XGBSEBaseEstimator):
 
             time_bins (np.array): Specified time windows to use when making survival predictions
 
-            enable_categorical (bool): Whether to enable the usage of categorical variables or not
-
         Returns:
             XGBSEStackedWeibull: Trained XGBSEStackedWeibull instance
         """
@@ -151,14 +151,14 @@ class XGBSEStackedWeibull(XGBSEBaseEstimator):
         self.time_bins = time_bins
 
         # converting data to xgb format
-        dtrain = convert_data_to_xgb_format(X, y, self.xgb_params["objective"], enable_categorical)
+        dtrain = convert_data_to_xgb_format(X, y, self.xgb_params["objective"], self.enable_categorical)
 
         # converting validation data to xgb format
         evals = ()
         if validation_data:
             X_val, y_val = validation_data
             dvalid = convert_data_to_xgb_format(
-                X_val, y_val, self.xgb_params["objective"], enable_categorical
+                X_val, y_val, self.xgb_params["objective"], self.enable_categorical
             )
             evals = [(dvalid, "validation")]
 
@@ -231,7 +231,7 @@ class XGBSEStackedWeibull(XGBSEBaseEstimator):
         """
 
         # converting to xgb format
-        d_matrix = xgb.DMatrix(X)
+        d_matrix = xgb.DMatrix(X, enable_categorical=self.enable_categorical)
 
         # getting leaves and extracting neighbors
         risk = self.bst.predict(
