@@ -418,7 +418,7 @@ class XGBSEKaplanTree(XGBSEBaseEstimator):
             )
             evals = [(dvalid, "validation")]
             del validation_data, X_val, y_val
-        
+
         # training XGB
         self.bst = xgb.train(self.xgb_params, dtrain, num_boost_round=1, evals=evals, **xgb_kwargs)
         self.feature_importances_ = self.bst.get_score()
