@@ -111,6 +111,7 @@ class XGBSEKaplanNeighbors(XGBSEBaseEstimator):
         persist_train=True,
         index_id=None,
         time_bins=None,
+        enable_categorical=True,
     ):
         """
         Transform feature space by fitting a XGBoost model and outputting its leaf indices.
@@ -142,6 +143,8 @@ class XGBSEKaplanNeighbors(XGBSEBaseEstimator):
 
             time_bins (np.array): Specified time windows to use when making survival predictions
 
+            enable_categorical (bool): Whether to enable the usage of categorical variables or not
+
         Returns:
             XGBSEKaplanNeighbors: Fitted instance of XGBSEKaplanNeighbors
         """
@@ -152,14 +155,14 @@ class XGBSEKaplanNeighbors(XGBSEBaseEstimator):
         self.time_bins = time_bins
 
         # converting data to xgb format
-        dtrain = convert_data_to_xgb_format(X, y, self.xgb_params["objective"])
+        dtrain = convert_data_to_xgb_format(X, y, self.xgb_params["objective"], enable_categorical)
 
         # converting validation data to xgb format
         evals = ()
         if validation_data:
             X_val, y_val = validation_data
             dvalid = convert_data_to_xgb_format(
-                X_val, y_val, self.xgb_params["objective"]
+                X_val, y_val, self.xgb_params["objective"], enable_categorical
             )
             evals = [(dvalid, "validation")]
 
@@ -173,6 +176,11 @@ class XGBSEKaplanNeighbors(XGBSEBaseEstimator):
             verbose_eval=verbose_eval,
         )
         self.feature_importances_ = self.bst.get_score()
+
+        # in xgboost, two properties are added only when early_stopping_rounds is passed
+        if not early_stopping_rounds:
+            self.bst.best_iteration = -1
+            self.bst.best_score = None
 
         # creating nearest neighbor index
         leaves = self.bst.predict(
@@ -354,6 +362,8 @@ class XGBSEKaplanTree(XGBSEBaseEstimator):
         index_id=None,
         time_bins=None,
         ci_width=0.683,
+        validation_data=None,
+        enable_categorical=True,
         **xgb_kwargs,
     ):
         """
@@ -381,6 +391,10 @@ class XGBSEKaplanTree(XGBSEBaseEstimator):
 
             ci_width (Float): Width of confidence interval
 
+            validation_data (Tuple): Validation data in the format of a list of tuples [(X, y)]
+
+            enable_categorical (bool): Whether to enable the usage of categorical variables or not
+
         Returns:
             XGBSEKaplanTree: Trained instance of XGBSEKaplanTree
         """
@@ -391,11 +405,27 @@ class XGBSEKaplanTree(XGBSEBaseEstimator):
         self.time_bins = time_bins
 
         # converting data to xgb format
-        dtrain = convert_data_to_xgb_format(X, y, self.xgb_params["objective"])
+        dtrain = convert_data_to_xgb_format(X, y, self.xgb_params["objective"], enable_categorical)
+        _index_id = X.index.copy()
+        del X, y
 
+        # converting validation data to xgb format
+        evals = ()
+        if validation_data:
+            X_val, y_val = validation_data
+            dvalid = convert_data_to_xgb_format(
+                X_val, y_val, self.xgb_params["objective"], enable_categorical
+            )
+            evals = [(dvalid, "validation")]
+            del validation_data, X_val, y_val
+        
         # training XGB
-        self.bst = xgb.train(self.xgb_params, dtrain, num_boost_round=1, **xgb_kwargs)
+        self.bst = xgb.train(self.xgb_params, dtrain, num_boost_round=1, evals=evals, **xgb_kwargs)
         self.feature_importances_ = self.bst.get_score()
+
+        # in xgboost, two properties are added only when early_stopping_rounds is passed
+        self.bst.best_iteration = -1
+        self.bst.best_score = None
 
         # getting leaves
         leaves = self.bst.predict(
@@ -431,7 +461,7 @@ class XGBSEKaplanTree(XGBSEBaseEstimator):
         if persist_train:
             self.persist_train = True
             if index_id is None:
-                index_id = X.index.copy()
+                index_id = _index_id
             self.tree = BallTree(leaves.reshape(-1, 1), metric="hamming", leaf_size=40)
         self.index_id = index_id
 

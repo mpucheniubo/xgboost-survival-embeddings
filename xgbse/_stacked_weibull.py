@@ -107,6 +107,7 @@ class XGBSEStackedWeibull(XGBSEBaseEstimator):
         persist_train=False,
         index_id=None,
         time_bins=None,
+        enable_categorical=True
     ):
         """
         Fit XGBoost model to predict a value that is interpreted as a risk metric.
@@ -138,6 +139,8 @@ class XGBSEStackedWeibull(XGBSEBaseEstimator):
 
             time_bins (np.array): Specified time windows to use when making survival predictions
 
+            enable_categorical (bool): Whether to enable the usage of categorical variables or not
+
         Returns:
             XGBSEStackedWeibull: Trained XGBSEStackedWeibull instance
         """
@@ -148,14 +151,14 @@ class XGBSEStackedWeibull(XGBSEBaseEstimator):
         self.time_bins = time_bins
 
         # converting data to xgb format
-        dtrain = convert_data_to_xgb_format(X, y, self.xgb_params["objective"])
+        dtrain = convert_data_to_xgb_format(X, y, self.xgb_params["objective"], enable_categorical)
 
         # converting validation data to xgb format
         evals = ()
         if validation_data:
             X_val, y_val = validation_data
             dvalid = convert_data_to_xgb_format(
-                X_val, y_val, self.xgb_params["objective"]
+                X_val, y_val, self.xgb_params["objective"], enable_categorical
             )
             evals = [(dvalid, "validation")]
 
@@ -169,6 +172,11 @@ class XGBSEStackedWeibull(XGBSEBaseEstimator):
             verbose_eval=verbose_eval,
         )
         self.feature_importances_ = self.bst.get_score()
+
+        # in xgboost, two properties are added only when early_stopping_rounds is passed
+        if not early_stopping_rounds:
+            self.bst.best_iteration = -1
+            self.bst.best_score = None
 
         # predicting risk from XGBoost
         train_risk = self.bst.predict(
