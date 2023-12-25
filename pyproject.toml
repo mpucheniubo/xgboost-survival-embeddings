@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "xgbse"
-version = "0.2.3"
+version = "0.2.4a0"
 description = ""
 authors = ["marc <mpucheniubo@gmail.com>"]
 license = "Apache-2.0 license"
